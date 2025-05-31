@@ -1,171 +1,170 @@
-# Abnormal File Vault
+# Secure File Vault
 
-A full-stack file management application built with React and Django, designed for efficient file handling and storage.
+A secure file storage and management system built with Django, React, and MinIO. This application provides a secure way to store, encrypt, and manage files with user authentication and role-based access control.
 
-## 🚀 Technology Stack
+## Features
 
-### Backend
-- Django 4.x (Python web framework)
-- Django REST Framework (API development)
-- SQLite (Development database)
-- Gunicorn (WSGI HTTP Server)
-- WhiteNoise (Static file serving)
+- 🔐 Secure file storage with encryption
+- 👤 User authentication and authorization
+- 📁 File upload, download, and management
+- 🔄 File versioning and history
+- 🔍 Search and filter capabilities
+- 📊 Storage usage tracking
+- 🛡️ Role-based access control
+- 🔒 End-to-end encryption support
 
-### Frontend
-- React 18 with TypeScript
-- TanStack Query (React Query) for data fetching
-- Axios for API communication
-- Tailwind CSS for styling
-- Heroicons for UI elements
+## Tech Stack
 
-### Infrastructure
+- **Backend**: Django, Django REST Framework
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **Storage**: MinIO (S3-compatible object storage)
+- **Authentication**: JWT (JSON Web Tokens)
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Containerization**: Docker, Docker Compose
+
+## Prerequisites
+
 - Docker and Docker Compose
-- Local file storage with volume mounting
+- Node.js 18+ (for local development)
+- Python 3.10+ (for local development)
 
-## 📋 Prerequisites
+## Quick Start
 
-Before you begin, ensure you have installed:
-- Docker (20.10.x or higher) and Docker Compose (2.x or higher)
-- Node.js (18.x or higher) - for local development
-- Python (3.9 or higher) - for local development
-
-## 🛠️ Installation & Setup
-
-### Using Docker (Recommended)
-
-```bash
-docker-compose up --build
-```
-
-### Local Development Setup
-
-#### Backend Setup
-1. **Create and activate virtual environment**
+1. Clone the repository:
    ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   git clone https://github.com/yourusername/secure-file-vault.git
+   cd secure-file-vault
    ```
 
-2. **Install dependencies**
+2. Create environment file:
    ```bash
+   cp .env.example .env
+   ```
+
+3. Update the `.env` file with your configuration:
+   ```env
+   # Django settings
+   DJANGO_DEBUG=False
+   DJANGO_SECRET_KEY=your-secure-secret-key-here
+   DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+
+   # MinIO settings
+   MINIO_ROOT_USER=minioadmin
+   MINIO_ROOT_PASSWORD=minioadmin
+   MINIO_BUCKET_NAME=secure-file-vault
+   MINIO_ENDPOINT_URL=http://minio:9000
+   MINIO_REGION=us-east-1
+
+   # Frontend settings
+   REACT_APP_API_URL=http://localhost:8000/api
+
+   # Encryption settings
+   ENCRYPTION_KEY=your-encryption-key-here
+   ```
+
+4. Start the application:
+   ```bash
+   docker-compose up --build
+   ```
+
+5. Access the application:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000/api
+   - MinIO Console: http://localhost:9001
+   - MinIO API: http://localhost:9000
+
+## Development Setup
+
+### Backend Development
+
+1. Create and activate virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # or
+   .\venv\Scripts\activate  # Windows
+   ```
+
+2. Install dependencies:
+   ```bash
+   cd backend
    pip install -r requirements.txt
    ```
 
-3. **Create necessary directories**
-   ```bash
-   mkdir -p media staticfiles data
-   ```
-
-4. **Run migrations**
+3. Run migrations:
    ```bash
    python manage.py migrate
    ```
 
-5. **Start the development server**
+4. Start development server:
    ```bash
    python manage.py runserver
    ```
 
-#### Frontend Setup
-1. **Install dependencies**
+### Frontend Development
+
+1. Install dependencies:
    ```bash
    cd frontend
    npm install
    ```
 
-2. **Create environment file**
-   Create `.env.local`:
-   ```
-   REACT_APP_API_URL=http://localhost:8000/api
-   ```
-
-3. **Start development server**
+2. Start development server:
    ```bash
    npm start
    ```
 
-## 🌐 Accessing the Application
+## Production Deployment
 
-- Frontend Application: http://localhost:3000
-- Backend API: http://localhost:8000/api
+1. Update environment variables:
+   - Set `DJANGO_DEBUG=False`
+   - Use strong secret keys
+   - Configure proper CORS settings
+   - Set up a production database
 
-## 📝 API Documentation
-
-### File Management Endpoints
-
-#### List Files
-- **GET** `/api/files/`
-- Returns a list of all uploaded files
-- Response includes file metadata (name, size, type, upload date)
-
-#### Upload File
-- **POST** `/api/files/`
-- Upload a new file
-- Request: Multipart form data with 'file' field
-- Returns: File metadata including ID and upload status
-
-#### Get File Details
-- **GET** `/api/files/<file_id>/`
-- Retrieve details of a specific file
-- Returns: Complete file metadata
-
-#### Delete File
-- **DELETE** `/api/files/<file_id>/`
-- Remove a file from the system
-- Returns: 204 No Content on success
-
-#### Download File
-- Access file directly through the file URL provided in metadata
-
-## 🗄️ Project Structure
-
-```
-file-hub/
-├── backend/                # Django backend
-│   ├── files/             # Main application
-│   │   ├── models.py      # Data models
-│   │   ├── views.py       # API views
-│   │   ├── urls.py        # URL routing
-│   │   └── serializers.py # Data serialization
-│   ├── core/              # Project settings
-│   └── requirements.txt   # Python dependencies
-├── frontend/              # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── services/      # API services
-│   │   └── types/         # TypeScript types
-│   └── package.json      # Node.js dependencies
-└── docker-compose.yml    # Docker composition
-```
-
-## 🔧 Development Features
-
-- Hot reloading for both frontend and backend
-- React Query DevTools for debugging data fetching
-- TypeScript for better development experience
-- Tailwind CSS for rapid UI development
-
-## 🐛 Troubleshooting
-
-1. **Port Conflicts**
+2. Build and deploy:
    ```bash
-   # If ports 3000 or 8000 are in use, modify docker-compose.yml or use:
-   # Frontend: npm start -- --port 3001
-   # Backend: python manage.py runserver 8001
+   docker-compose -f docker-compose.prod.yml up --build
    ```
 
-2. **File Upload Issues**
-   - Maximum file size: 10MB
-   - Ensure proper permissions on media directory
-   - Check network tab for detailed error messages
+## API Documentation
 
-3. **Database Issues**
-   ```bash
-   # Reset database
-   rm backend/data/db.sqlite3
-   python manage.py migrate
-   ```
+The API documentation is available at `/api/docs/` when running the backend server.
+
+### Key Endpoints
+
+- `POST /api/auth/login/` - User login
+- `POST /api/auth/register/` - User registration
+- `GET /api/files/` - List files
+- `POST /api/files/` - Upload file
+- `GET /api/files/{id}/download/` - Download file
+- `DELETE /api/files/{id}/` - Delete file
+
+## Security Features
+
+- JWT-based authentication
+- File encryption at rest
+- Role-based access control
+- Secure file transfer
+- Input validation and sanitization
+- CORS protection
+- Rate limiting
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For support, email support@example.com or open an issue in the repository.
 
 # Project Submission Instructions
 
