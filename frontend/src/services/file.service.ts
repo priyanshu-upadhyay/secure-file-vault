@@ -80,8 +80,10 @@ class FileService {
         return response.data;
     }
 
-    async getFiles(): Promise<FileResponse[]> {
-        const response = await axios.get(API_URL + '/', {
+    async getFiles(filters?: Record<string, string>): Promise<FileResponse[]> {
+        const queryParams = new URLSearchParams(filters).toString();
+        const url = queryParams ? `${API_URL}/?${queryParams}` : `${API_URL}/`;
+        const response = await axios.get(url, {
             headers: this.getHeaders(),
         });
         return response.data;

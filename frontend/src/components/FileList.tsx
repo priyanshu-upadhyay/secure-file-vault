@@ -1,5 +1,5 @@
-import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useState, forwardRef, useImperativeHandle, useCallback, useRef } from 'react';
+import { TrashIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import * as FaIcons from 'react-icons/fa'; // Import all as FaIcons
 import { fileService, FileResponse } from '../services/file.service';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,8 +20,24 @@ const IconFilm = FaIcons.FaFilm as unknown as React.FC<React.SVGProps<SVGSVGElem
 const IconMusic = FaIcons.FaMusic as unknown as React.FC<React.SVGProps<SVGSVGElement>>;
 
 export interface FileListHandle {
-    fetchFiles: () => Promise<void>;
+    fetchFiles: (filters?: Record<string, string>) => Promise<void>;
 }
+
+// Debounce utility (can be outside component or memoized)
+const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const debounced = (...args: Parameters<F>) => {
+        if (timeoutId !== null) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), waitFor);
+    };
+    const cancel = () => {
+        if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+        }
+    };
+    return { debounced, cancel };
+};
 
 // Helper function to get icon based on MIME type
 const getIconForMimeType = (mimeType: string): JSX.Element => {
@@ -72,9 +88,22 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
     const [fileToDelete, setFileToDelete] = useState<FileResponse | null>(null);
     const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
-    const fetchFiles = async () => {
+    // Filter states
+    const [filename, setFilename] = useState('');
+    const [fileType, setFileType] = useState('');
+    const [sizeMin, setSizeMin] = useState('');
+    const [sizeMax, setSizeMax] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+
+    // Core fetching logic, memoized
+    const fetchFilesLogic = useCallback(async (filters: Record<string, string>) => {
+        setLoading(true);
         try {
-            const response = await fileService.getFiles();
+            const activeFilters = Object.fromEntries(
+                Object.entries(filters).filter(([_, value]) => value !== null && value !== '' && value !== undefined)
+            );
+            const response = await fileService.getFiles(activeFilters);
             setFiles(response);
             setError(null);
         } catch (err: any) {
@@ -83,10 +112,50 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []); // Empty dependency array: fetchFilesLogic is stable
+
+    // useRef to hold the stable debounced function and its cancel method
+    const debouncedFetchRef = useRef(
+        debounce((filters: Record<string, string>) => fetchFilesLogic(filters), 500)
+    );
+
+    // useEffect for triggering search when filter states change
+    useEffect(() => {
+        const currentFilters = {
+            filename,
+            file_type: fileType,
+            size_min: sizeMin,
+            size_max: sizeMax,
+            date_from: dateFrom,
+            date_to: dateTo,
+        };
+        // Call the debounced function from the ref
+        debouncedFetchRef.current.debounced(currentFilters);
+
+        // Cleanup: cancel any pending debounced call when dependencies change or component unmounts
+        return () => {
+            debouncedFetchRef.current.cancel();
+        };
+    }, [filename, fileType, sizeMin, sizeMax, dateFrom, dateTo]); // Re-run when any filter state changes
+
+    // Initial fetch on component mount
+    useEffect(() => {
+        // Fetch with empty filters initially or default filters
+        fetchFilesLogic({});
+    }, [fetchFilesLogic]); // Depends on stable fetchFilesLogic
 
     useImperativeHandle(ref, () => ({
-        fetchFiles
+        fetchFiles: async (filters?: Record<string, string>) => {
+            const currentFilters = filters || {
+                filename,
+                file_type: fileType,
+                size_min: sizeMin,
+                size_max: sizeMax,
+                date_from: dateFrom,
+                date_to: dateTo,
+            };
+            await fetchFilesLogic(currentFilters);
+        }
     }));
 
     const handleDeleteClick = (file: FileResponse) => {
@@ -96,10 +165,11 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
 
     const handleDeleteConfirm = async () => {
         if (!fileToDelete) return;
-
         try {
             await fileService.deleteFile(fileToDelete.id);
-            await fetchFiles();
+            // Refetch with current filters after delete
+            const currentFilters = { filename, file_type: fileType, size_min: sizeMin, size_max: sizeMax, date_from: dateFrom, date_to: dateTo };
+            await fetchFilesLogic(currentFilters);
             await refreshStorageInfo();
             setDeleteModalOpen(false);
             setFileToDelete(null);
@@ -131,9 +201,15 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
         }
     };
 
-    useEffect(() => {
-        fetchFiles();
-    }, []);
+    const handleClearFilters = () => {
+        setFilename('');
+        setFileType('');
+        setSizeMin('');
+        setSizeMax('');
+        setDateFrom('');
+        setDateTo('');
+        // The useEffect listening to filter states will automatically trigger a debounced refetch
+    };
 
     if (loading) {
         return (
@@ -148,6 +224,86 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
         <div className="w-full max-w-4xl mx-auto p-4">
             <h2 className="text-xl font-semibold mb-4">Your Files</h2>
             
+            {/* Filter Section */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg shadow">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label htmlFor="filename" className="block text-sm font-medium text-gray-700">Filename</label>
+                        <input
+                            type="text"
+                            name="filename"
+                            id="filename"
+                            value={filename}
+                            onChange={(e) => setFilename(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="fileType" className="block text-sm font-medium text-gray-700">File Type (e.g., image/jpeg, pdf)</label>
+                        <input
+                            type="text"
+                            name="fileType"
+                            id="fileType"
+                            value={fileType}
+                            onChange={(e) => setFileType(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="sizeMin" className="block text-sm font-medium text-gray-700">Min Size (bytes)</label>
+                        <input
+                            type="number"
+                            name="sizeMin"
+                            id="sizeMin"
+                            value={sizeMin}
+                            onChange={(e) => setSizeMin(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="sizeMax" className="block text-sm font-medium text-gray-700">Max Size (bytes)</label>
+                        <input
+                            type="number"
+                            name="sizeMax"
+                            id="sizeMax"
+                            value={sizeMax}
+                            onChange={(e) => setSizeMax(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700">Uploaded After</label>
+                        <input
+                            type="date"
+                            name="dateFrom"
+                            id="dateFrom"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700">Uploaded Before</label>
+                        <input
+                            type="date"
+                            name="dateTo"
+                            id="dateTo"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        />
+                    </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                    <button
+                        onClick={handleClearFilters}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+
             {error && (
                 <div className="mb-4 text-center text-sm text-red-600 bg-red-50 p-2 rounded">
                     {error}
@@ -171,12 +327,23 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
                                     <div className="flex items-center">
                                         {getIconForMimeType(file.file_type)}
                                         <div className="ml-3">
-                                            <p className="text-sm font-medium text-gray-900">
+                                            <p className="text-sm font-medium text-gray-900 flex items-center">
                                                 {file.original_filename}
+                                                {file.is_encrypted && (
+                                                    <span title="This file is encrypted and securely stored.">
+                                                        <LockClosedIcon className="h-5 w-5 ml-2 text-green-600" />
+                                                    </span>
+                                                )}
                                             </p>
                                             <p className="text-sm text-gray-500">
                                                 {file.file_size} • {new Date(file.upload_date).toLocaleDateString()}
                                             </p>
+                                            {/* Optional: Keep text or remove if icon is enough */}
+                                            {/* {file.is_encrypted && (
+                                                <p className="text-xs text-green-600 font-semibold">
+                                                    Security - Encrypted
+                                                </p>
+                                            )} */}
                                         </div>
                                     </div>
                                     <div className="flex space-x-3">

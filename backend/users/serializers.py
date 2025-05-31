@@ -59,9 +59,9 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Handle encryption key separately
-        encryption_key = validated_data.pop('encryption_key', None)
-        if encryption_key is not None:  # Allow empty string to clear the key
-            instance.set_encryption_key(encryption_key)
+        encryption_key_str = validated_data.pop('encryption_key', None)
+        if encryption_key_str is not None:  # Allow empty string to clear the key
+            instance.set_raw_key(encryption_key_str)
 
         # Handle profile photo separately
         profile_photo = validated_data.pop('profile_photo', None)
@@ -77,6 +77,16 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+class RotateKeySerializer(serializers.Serializer):
+    old_encryption_key = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text="Optional: User's current raw encryption key for verification.")
+    new_encryption_key = serializers.CharField(max_length=255, required=True, allow_blank=False, help_text="User's new raw encryption key.")
+
+    def validate_new_encryption_key(self, value):
+        if not value: # Should be caught by allow_blank=False, but double check
+            raise serializers.ValidationError("New encryption key cannot be empty.")
+        # Add any other complexity/strength requirements for the key if desired
+        return value
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(

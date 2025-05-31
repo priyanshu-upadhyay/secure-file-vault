@@ -13,6 +13,7 @@ import mimetypes
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import hashlib
+from datetime import datetime, timedelta
 
 from .models import File, FileAccessLog
 from .serializers import FileSerializer
@@ -27,7 +28,35 @@ class FileViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return File.objects.filter(owner=self.request.user)
+        queryset = File.objects.filter(owner=self.request.user)
+        
+        filename = self.request.query_params.get('filename', None)
+        file_type = self.request.query_params.get('file_type', None)
+        size_min = self.request.query_params.get('size_min', None)
+        size_max = self.request.query_params.get('size_max', None)
+        date_from = self.request.query_params.get('date_from', None)
+        date_to = self.request.query_params.get('date_to', None)
+
+        if filename:
+            queryset = queryset.filter(original_filename__icontains=filename)
+        if file_type:
+            queryset = queryset.filter(file_type__icontains=file_type)
+        if size_min:
+            queryset = queryset.filter(size__gte=size_min)
+        if size_max:
+            queryset = queryset.filter(size__lte=size_max)
+        if date_from:
+            queryset = queryset.filter(uploaded_at__gte=date_from)
+        if date_to:
+            # Add 1 day to date_to to include files uploaded on that day
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date() + timedelta(days=1)
+                queryset = queryset.filter(uploaded_at__lt=date_to_obj)
+            except ValueError:
+                # Handle invalid date format if necessary, or log an error
+                pass
+            
+        return queryset
     
     def create(self, request, *args, **kwargs):
         uploaded_file = request.FILES.get('file')
@@ -79,11 +108,13 @@ class FileViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         # Get encryption key (user-level or from .env)
-        encryption_key = get_encryption_key(user)
+        # encryption_key = get_encryption_key(user) # Old method
+        derived_aes_key = user.get_derived_aes_key()
+
         # Encrypt file content if key is present, else store as plain
-        if encryption_key:
+        if derived_aes_key:
             iv = get_random_bytes(16)
-            cipher = AES.new(encryption_key, AES.MODE_CFB, iv=iv)
+            cipher = AES.new(derived_aes_key, AES.MODE_CFB, iv=iv)
             encrypted_content = iv + cipher.encrypt(file_content)
             content_to_store = encrypted_content
             is_encrypted = True
@@ -144,8 +175,14 @@ class FileViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"Error during file/folder cleanup: {e}")
         # Update user's storage usage
-        request.user.used_storage -= file_instance.size
-        request.user.save()
+        user_to_update = request.user
+        user_to_update.used_storage -= file_instance.size
+        if user_to_update.used_storage < 0:
+            # Log this anomaly, as it indicates a prior miscalculation
+            print(f"[WARNING] User {user_to_update.username} used_storage was about to become negative ({user_to_update.used_storage}). Clamping to 0.")
+            # This might also be a good place to trigger a full recalculation for this user if anomalies are frequent.
+            user_to_update.used_storage = 0
+        user_to_update.save()
         # Log the deletion
         FileAccessLog.objects.create(
             file=file_instance,
@@ -186,12 +223,14 @@ class FileViewSet(viewsets.ModelViewSet):
 
             # Get the encryption key (user-level or from .env)
             user = request.user
-            encryption_key = get_encryption_key(user)
+            # encryption_key = get_encryption_key(user) # Old method
+            derived_aes_key = user.get_derived_aes_key()
+
             with open(file_path, 'rb') as f:
                 file_content = f.read()
-            if file_instance.is_encrypted and encryption_key:
+            if file_instance.is_encrypted and derived_aes_key:
                 iv = file_content[:16]
-                cipher = AES.new(encryption_key, AES.MODE_CFB, iv=iv)
+                cipher = AES.new(derived_aes_key, AES.MODE_CFB, iv=iv)
                 decrypted_content = cipher.decrypt(file_content[16:])
                 content_to_send = decrypted_content
             else:
@@ -250,6 +289,10 @@ def create_file_reference(request):
         encryption_key_id=existing_file.encryption_key_id,
         file_hash=file_hash
     )
+    # Update user's storage
+    user.used_storage += existing_file.size
+    user.save()
+
     FileAccessLog.objects.create(
         file=file_instance,
         user=user,
@@ -259,10 +302,10 @@ def create_file_reference(request):
     serializer = FileSerializer(file_instance, context={'request': request})
     return Response(serializer.data, status=201)
 
-def get_encryption_key(user):
-    encryption_key = getattr(user, 'encryption_key', None)
-    if not encryption_key:
-        return None
-    if isinstance(encryption_key, str):
-        encryption_key = encryption_key.encode()
-    return hashlib.sha256(encryption_key).digest()[:32]  # AES-256
+# def get_encryption_key(user): # This function is now obsolete due to model methods
+#     encryption_key = getattr(user, 'encryption_key', None)
+#     if not encryption_key:
+#         return None
+#     if isinstance(encryption_key, str):
+#         encryption_key = encryption_key.encode()
+#     return hashlib.sha256(encryption_key).digest()[:32]  # AES-256

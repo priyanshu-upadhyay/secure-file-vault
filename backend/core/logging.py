@@ -5,6 +5,7 @@ from django.db import connection
 from django.conf import settings
 import json
 from datetime import datetime
+import traceback
 
 class JsonFormatter(logging.Formatter):
     """Custom formatter that handles both structured and unstructured logs"""
@@ -134,6 +135,7 @@ class SQLLogMiddleware:
 
 def log_exception(request, exc_info):
     """Log exception details with request context"""
+    formatted_traceback = "".join(traceback.format_tb(exc_info[2]))
     log_data = {
         'request_id': getattr(request, 'request_id', 'unknown'),
         'timestamp': datetime.utcnow().isoformat(),
@@ -142,6 +144,6 @@ def log_exception(request, exc_info):
         'user': str(request.user) if request.user.is_authenticated else 'anonymous',
         'ip': RequestLogMiddleware.get_client_ip(None, request),
         'exception': str(exc_info[1]),
-        'traceback': ''.join(exc_info[2].format()),
+        'traceback': formatted_traceback,
     }
     logger.error('Exception occurred', extra={'log_data': log_data}, exc_info=exc_info) 

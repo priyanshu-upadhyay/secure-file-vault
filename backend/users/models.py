@@ -5,6 +5,7 @@ from django.conf import settings
 from cryptography.fernet import Fernet
 import base64
 import os
+import hashlib
 
 class User(AbstractUser):
     """Custom user model for future extensibility"""
@@ -35,42 +36,54 @@ class User(AbstractUser):
         """Check if user can upload a file of given size"""
         return (self.used_storage + file_size) <= self.storage_quota
 
-    def set_encryption_key(self, key):
-        """Encrypt and store the encryption key"""
-        if not key:
+    def set_raw_key(self, raw_key_string: str):
+        """Encrypt and store the user's raw encryption key string"""
+        if not raw_key_string:
             self.encryption_key = None
             return
         
-        # Get or create encryption key for the application
-        app_key = settings.ENCRYPTION_KEY
-        if not app_key:
+        app_key_setting = getattr(settings, 'ENCRYPTION_KEY', None)
+        if not app_key_setting:
+            # This is a fallback and not ideal for production. 
+            # settings.ENCRYPTION_KEY should be consistently defined.
+            # print("[Warning] settings.ENCRYPTION_KEY not set, using a generated key for this session for user key encryption.")
             app_key = Fernet.generate_key()
-            settings.ENCRYPTION_KEY = app_key
-        
-        # Encrypt the user's encryption key
-        f = Fernet(app_key)
-        encrypted_key = f.encrypt(key.encode())
-        self.encryption_key = base64.b64encode(encrypted_key).decode()
+        else:
+            app_key = app_key_setting.encode() if isinstance(app_key_setting, str) else app_key_setting
 
-    def get_encryption_key(self):
-        """Decrypt and return the encryption key"""
+        f = Fernet(app_key)
+        encrypted_user_key = f.encrypt(raw_key_string.encode())
+        self.encryption_key = base64.b64encode(encrypted_user_key).decode()
+
+    def get_raw_key(self) -> str | None:
+        """Decrypt and return the user's raw encryption key string"""
         if not self.encryption_key:
             return None
         
         try:
-            # Get application encryption key
-            app_key = settings.ENCRYPTION_KEY
-            if not app_key:
+            app_key_setting = getattr(settings, 'ENCRYPTION_KEY', None)
+            if not app_key_setting:
+                # print("[Error] settings.ENCRYPTION_KEY not set. Cannot decrypt user key.")
                 return None
             
-            # Decrypt the user's encryption key
+            app_key = app_key_setting.encode() if isinstance(app_key_setting, str) else app_key_setting
+            
             f = Fernet(app_key)
-            encrypted_key = base64.b64decode(self.encryption_key.encode())
-            decrypted_key = f.decrypt(encrypted_key)
-            return decrypted_key.decode()
-        except Exception:
+            encrypted_user_key_b64 = base64.b64decode(self.encryption_key.encode())
+            decrypted_user_key = f.decrypt(encrypted_user_key_b64)
+            return decrypted_user_key.decode()
+        except Exception as e:
+            # print(f"[Error] Failed to decrypt user key: {e}")
             return None
 
+    def get_derived_aes_key(self) -> bytes | None:
+        """Derive the 32-byte AES encryption key from the user's raw key."""
+        raw_key = self.get_raw_key()
+        if not raw_key:
+            return None
+        # Use SHA-256 to derive a 32-byte key suitable for AES-256
+        return hashlib.sha256(raw_key.encode()).digest()
+
     def has_encryption_key(self):
-        """Check if user has an encryption key set"""
+        """Check if user has an encryption key set (i.e., self.encryption_key field is not null/empty)"""
         return bool(self.encryption_key)

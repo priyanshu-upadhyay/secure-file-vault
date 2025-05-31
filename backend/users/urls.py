@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import RegisterView, UserProfileView, UserStorageView
+from .views import RegisterView, UserProfileView, UserStorageView, RotateEncryptionKeyView
 
 app_name = 'users'
 
@@ -10,4 +10,5 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', UserProfileView.as_view(), name='profile'),
     path('storage/', UserStorageView.as_view(), name='storage'),
+    path('rotate-key/', RotateEncryptionKeyView.as_view(), name='rotate_key'),
 ] 
