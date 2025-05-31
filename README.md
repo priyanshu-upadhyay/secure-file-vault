@@ -43,23 +43,32 @@ A secure file storage and management system built with Django, React, and MinIO.
 
 3. Update the `.env` file with your configuration:
    ```env
-   # Django settings
-   DJANGO_DEBUG=False
-   DJANGO_SECRET_KEY=your-secure-secret-key-here
-   DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+    # Django settings
+    DJANGO_DEBUG=True
+    DJANGO_SECRET_KEY=wjbe4n=2&jfny^u4o!=)*bsv&53a$7aa(&wyk-qlk6g6brkv)6
+    DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 
-   # MinIO settings
-   MINIO_ROOT_USER=minioadmin
-   MINIO_ROOT_PASSWORD=minioadmin
-   MINIO_BUCKET_NAME=secure-file-vault
-   MINIO_ENDPOINT_URL=http://minio:9000
-   MINIO_REGION=us-east-1
+    # Database settings
+    DB_ENGINE=django.db.backends.sqlite3
+    DB_NAME=db.sqlite3
 
-   # Frontend settings
-   REACT_APP_API_URL=http://localhost:8000/api
+    # MinIO settings
+    MINIO_ROOT_USER=minioadmin
+    MINIO_ROOT_PASSWORD=minioadmin123
+    MINIO_BUCKET_NAME=secure-file-vault
+    MINIO_ENDPOINT_URL=http://minio:9000
+    MINIO_REGION=us-east-1
 
-   # Encryption settings
-   ENCRYPTION_KEY=your-encryption-key-here
+    # Frontend settings
+    REACT_APP_API_URL=http://localhost:8000/api
+
+    # Encryption settings
+    ENCRYPTION_KEY=a-y9AZNVRZsdeag-1VtQkIfkVzcJxyBUAmN4TVFgZZw=
+
+    # CORS settings
+    CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+    STORAGE_BACKEND=s3
    ```
 
 4. Start the application:
