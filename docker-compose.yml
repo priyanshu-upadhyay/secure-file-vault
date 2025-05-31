@@ -12,10 +12,10 @@ services:
       - backend_static:/app/staticfiles
       - backend_data:/app/data
     environment:
-      - DJANGO_DEBUG=False
+      - DJANGO_DEBUG=True
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
-      - STORAGE_BACKEND=s3
+      - STORAGE_BACKEND=${STORAGE_BACKEND}
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
@@ -66,12 +66,14 @@ services:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
-    volumes:
-      - ./backend/init-minio.sh:/init-minio.sh
     entrypoint: >
       /bin/sh -c "
-        chmod +x /init-minio.sh &&
-        /init-minio.sh
+        until mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
+          echo 'Waiting for MinIO to be ready...'
+          sleep 1
+        done &&
+        mc mb myminio/${MINIO_BUCKET_NAME} --ignore-existing &&
+        echo 'MinIO initialization completed!'
       "
 
 volumes:

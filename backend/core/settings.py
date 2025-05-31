@@ -236,7 +236,7 @@ if STORAGE_BACKEND == 's3':
     AWS_DEFAULT_ACL = None # Default, MinIO typically handles ACLs at bucket/policy level
     AWS_S3_REGION_NAME = os.getenv('MINIO_REGION', 'us-east-1') # MinIO doesn't strictly use regions like AWS S3, but boto3 might expect it.
     AWS_S3_SIGNATURE_VERSION = 's3v4'
-    AWS_S3_ADDRESSING_STYLE = 'virtual' # Can be 'path' or 'virtual'. 'path' is often better for MinIO.
+    AWS_S3_ADDRESSING_STYLE = 'path' # Can be 'path' or 'virtual'. 'path' is often better for MinIO.
     # For MinIO, it's often recommended to use path-style access if virtual hosting is not configured:
     # AWS_S3_ADDRESSING_STYLE = 'path'
     # You might also need this for self-signed certs if using HTTPS with MinIO, but your setup is HTTP

@@ -15,9 +15,13 @@ from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import hashlib
 from datetime import datetime, timedelta
+import logging
 
 from .models import File, FileAccessLog
 from .serializers import FileSerializer
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 # Maximum file size (100MB)
 MAX_FILE_SIZE = 100 * 1024 * 1024
@@ -139,7 +143,7 @@ class FileViewSet(viewsets.ModelViewSet):
             actual_stored_path = default_storage.save(storage_path, ContentFile(content_to_store))
         except Exception as e:
             # Log the exception
-            print(f"[ERROR] Failed to save file to storage: {e}")
+            logger.error(f"Failed to save file to storage: {e}", exc_info=True)
             return Response({'error': 'Failed to save file to storage.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Create the File model instance
@@ -193,14 +197,14 @@ class FileViewSet(viewsets.ModelViewSet):
             try:
                 if default_storage.exists(file_instance.file.name):
                     default_storage.delete(file_instance.file.name)
-                    print(f"[INFO] Deleted physical file from storage: {file_instance.file.name}")
+                    logger.info(f"Deleted physical file from storage: {file_instance.file.name}")
             except Exception as e:
-                print(f"[ERROR] Error deleting physical file {file_instance.file.name} from storage: {e}")
+                logger.error(f"Error deleting physical file {file_instance.file.name} from storage: {e}", exc_info=True)
         else:
             if file_instance.file and file_instance.file.name:
-                print(f"[INFO] Physical file {file_instance.file.name} not deleted from storage due to other references (hash-based).")
+                logger.info(f"Physical file {file_instance.file.name} not deleted from storage due to other references (hash-based).")
             else:
-                print(f"[INFO] No physical file associated with this record or path is empty.")
+                logger.info("No physical file associated with this record or path is empty.")
 
 
         # Update user's storage usage (this part seems okay)
@@ -208,7 +212,7 @@ class FileViewSet(viewsets.ModelViewSet):
         original_file_size = file_instance.size # Size stored in DB
         user_to_update.used_storage -= original_file_size
         if user_to_update.used_storage < 0:
-            print(f"[WARNING] User {user_to_update.username} used_storage was about to become negative ({user_to_update.used_storage}) due to subtracting {original_file_size}. Clamping to 0.")
+            logger.warning(f"User {user_to_update.username} used_storage was about to become negative ({user_to_update.used_storage}) due to subtracting {original_file_size}. Clamping to 0.")
             user_to_update.used_storage = 0
         user_to_update.save()
         
@@ -222,7 +226,7 @@ class FileViewSet(viewsets.ModelViewSet):
         file_instance_id_for_log = file_instance.id
         file_original_name_for_log = file_instance.original_filename
         response = super().destroy(request, *args, **kwargs) # This deletes the DB record
-        print(f"[INFO] Deleted File DB record ID: {file_instance_id_for_log}, Original Name: {file_original_name_for_log}")
+        logger.info(f"Deleted File DB record ID: {file_instance_id_for_log}, Original Name: {file_original_name_for_log}")
         return response
 
     @action(detail=True, methods=['get'])
