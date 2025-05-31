@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from django.conf import settings
 from django.http import FileResponse, HttpResponse
 import os
@@ -123,30 +124,39 @@ class FileViewSet(viewsets.ModelViewSet):
             content_to_store = file_content
             is_encrypted = False
             encryption_key_id = None
-        # Store file in /s3/ with no extension, prefix 'ecry::' if encrypted, and use short UUID
-        file_storage_dir = os.path.join(settings.MAIN_DIR, 's3')
-        os.makedirs(file_storage_dir, exist_ok=True)
+
+        # Generate the custom filename for storage
         short_uuid = str(uuid.uuid4())[:8]
         if is_encrypted:
-            stored_filename = f"ecry::{short_uuid}"
+            stored_filename_stem = f"ecry::{short_uuid}"
         else:
-            stored_filename = short_uuid
-        stored_path = os.path.join(file_storage_dir, stored_filename)
-        with open(stored_path, 'wb') as f:
-            f.write(content_to_store)
-        relative_path = os.path.relpath(stored_path, settings.BASE_DIR)
+            stored_filename_stem = short_uuid
+        
+        storage_path = stored_filename_stem
+
+        # Save the file using Django's default storage system
+        try:
+            actual_stored_path = default_storage.save(storage_path, ContentFile(content_to_store))
+        except Exception as e:
+            # Log the exception
+            print(f"[ERROR] Failed to save file to storage: {e}")
+            return Response({'error': 'Failed to save file to storage.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Create the File model instance
         file_instance = File.objects.create(
             owner=user,
-            file=relative_path,
+            file=actual_stored_path, # Store the path returned by the storage system
             original_filename=uploaded_file.name,
             file_type=uploaded_file.content_type,
-            size=file_size,
+            size=len(content_to_store), # Use length of content_to_store, as file_size was from original
             is_encrypted=is_encrypted,
-            encryption_key_id=encryption_key_id,
+            encryption_key_id=encryption_key_id, # This might still be relevant for user-level key id
             file_hash=file_hash
         )
-        user.used_storage += file_size
+        
+        user.used_storage += len(content_to_store) # Ensure this uses the size of the content actually stored
         user.save()
+        
         FileAccessLog.objects.create(
             file=file_instance,
             user=user,
@@ -158,59 +168,84 @@ class FileViewSet(viewsets.ModelViewSet):
         
     def destroy(self, request, *args, **kwargs):
         file_instance = self.get_object()
-        user_id = str(file_instance.owner.id)
-        try:
-            # Only delete the physical file if this is the last reference
-            if file_instance.file:
-                file_path = os.path.join(settings.BASE_DIR, str(file_instance.file))
-                print(f"[DEBUG] Attempting to delete file at: {file_path}")
-                # Count references to this file_hash (excluding this instance)
-                other_refs = File.objects.filter(file_hash=file_instance.file_hash).exclude(id=file_instance.id).count()
-                if other_refs == 0:
-                    # Delete the physical file if it exists
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                    if default_storage.exists(str(file_instance.file)):
-                        default_storage.delete(str(file_instance.file))
-        except Exception as e:
-            print(f"Error during file/folder cleanup: {e}")
-        # Update user's storage usage
+        
+        # Attempt to delete from storage only if this is the last reference to the physical file.
+        # The File model's `file` field stores the path.
+        # The logic for `other_refs` using `file_hash` is for deduplication of *content*.
+        # The actual file on storage corresponds to `file_instance.file.name` (the path).
+        
+        can_delete_physical_file = False
+        if file_instance.file and file_instance.file.name:
+            # Count how many File objects point to this exact file path/name
+            # This assumes that if file_hash is the same, existing_file.file is reused.
+            # If create_file_reference directly copies existing_file.file (the path string), this is fine.
+            # If a new file is saved even for references (it shouldn't be), this logic needs adjustment.
+            
+            # Let's refine: the critical part is if other File records use the *same file_hash*
+            # and we assume that means they point to the same physical data.
+            # The physical deletion should happen if no other File record shares this file_hash.
+            
+            other_hash_refs = File.objects.filter(file_hash=file_instance.file_hash).exclude(id=file_instance.id).count()
+            if other_hash_refs == 0:
+                can_delete_physical_file = True
+
+        if can_delete_physical_file:
+            try:
+                if default_storage.exists(file_instance.file.name):
+                    default_storage.delete(file_instance.file.name)
+                    print(f"[INFO] Deleted physical file from storage: {file_instance.file.name}")
+            except Exception as e:
+                print(f"[ERROR] Error deleting physical file {file_instance.file.name} from storage: {e}")
+        else:
+            if file_instance.file and file_instance.file.name:
+                print(f"[INFO] Physical file {file_instance.file.name} not deleted from storage due to other references (hash-based).")
+            else:
+                print(f"[INFO] No physical file associated with this record or path is empty.")
+
+
+        # Update user's storage usage (this part seems okay)
         user_to_update = request.user
-        user_to_update.used_storage -= file_instance.size
+        original_file_size = file_instance.size # Size stored in DB
+        user_to_update.used_storage -= original_file_size
         if user_to_update.used_storage < 0:
-            # Log this anomaly, as it indicates a prior miscalculation
-            print(f"[WARNING] User {user_to_update.username} used_storage was about to become negative ({user_to_update.used_storage}). Clamping to 0.")
-            # This might also be a good place to trigger a full recalculation for this user if anomalies are frequent.
+            print(f"[WARNING] User {user_to_update.username} used_storage was about to become negative ({user_to_update.used_storage}) due to subtracting {original_file_size}. Clamping to 0.")
             user_to_update.used_storage = 0
         user_to_update.save()
-        # Log the deletion
+        
         FileAccessLog.objects.create(
             file=file_instance,
             user=request.user,
             action='delete',
             ip_address=request.META.get('REMOTE_ADDR', '')
         )
-        # Delete the database record
-        return super().destroy(request, *args, **kwargs)
+        # Delete the database record for the File instance
+        file_instance_id_for_log = file_instance.id
+        file_original_name_for_log = file_instance.original_filename
+        response = super().destroy(request, *args, **kwargs) # This deletes the DB record
+        print(f"[INFO] Deleted File DB record ID: {file_instance_id_for_log}, Original Name: {file_original_name_for_log}")
+        return response
 
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
         file_instance = self.get_object()
 
-        if not file_instance.file:
+        if not file_instance.file or not file_instance.file.name: # Check .name for actual path
             return Response(
-                {'error': 'File not found'},
+                {'error': 'File not found or path is missing'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         try:
-            # Resolve the file path manually
-            file_path = os.path.join(settings.BASE_DIR, str(file_instance.file))
-            if not os.path.exists(file_path):
+            # Use default_storage to open the file
+            if not default_storage.exists(file_instance.file.name):
                 return Response(
-                    {'error': 'File not found on storage'},
+                    {'error': 'File not found on storage backend'},
                     status=status.HTTP_404_NOT_FOUND
                 )
+            
+            # Open the file from storage
+            with default_storage.open(file_instance.file.name, 'rb') as f:
+                file_content_from_storage = f.read()
 
             # Log the download
             FileAccessLog.objects.create(
@@ -221,22 +256,23 @@ class FileViewSet(viewsets.ModelViewSet):
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
 
-            # Get the encryption key (user-level or from .env)
             user = request.user
-            # encryption_key = get_encryption_key(user) # Old method
             derived_aes_key = user.get_derived_aes_key()
-
-            with open(file_path, 'rb') as f:
-                file_content = f.read()
-            if file_instance.is_encrypted and derived_aes_key:
-                iv = file_content[:16]
-                cipher = AES.new(derived_aes_key, AES.MODE_CFB, iv=iv)
-                decrypted_content = cipher.decrypt(file_content[16:])
-                content_to_send = decrypted_content
-            else:
-                content_to_send = file_content
-
-            # Get the content type
+            
+            content_to_send = file_content_from_storage
+            if file_instance.is_encrypted:
+                if derived_aes_key:
+                    iv = file_content_from_storage[:16]
+                    ciphertext = file_content_from_storage[16:]
+                    cipher = AES.new(derived_aes_key, AES.MODE_CFB, iv=iv)
+                    try:
+                        content_to_send = cipher.decrypt(ciphertext)
+                    except ValueError as e: # Possible padding error or incorrect key
+                        print(f"[ERROR] Decryption failed for file {file_instance.original_filename}: {e}")
+                        return Response({'error': 'Decryption failed. Key might be incorrect or file corrupted.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                else: # File is encrypted, but user has no key or it's invalid
+                    return Response({'error': 'File is encrypted, but a valid decryption key is not available.'}, status=status.HTTP_403_FORBIDDEN)
+            
             content_type, _ = mimetypes.guess_type(file_instance.original_filename)
             if not content_type:
                 content_type = 'application/octet-stream'
@@ -249,6 +285,7 @@ class FileViewSet(viewsets.ModelViewSet):
             return response
 
         except Exception as e:
+            print(f"[ERROR] Failed to download file {file_instance.original_filename}: {str(e)}")
             return Response(
                 {'error': f'Failed to download file: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

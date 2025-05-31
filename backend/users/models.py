@@ -14,7 +14,7 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     encryption_key = models.CharField(max_length=255, null=True, blank=True)
-    profile_photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+    profile_photo = models.ImageField(upload_to='profile_image/', null=True, blank=True)
 
     # Additional fields can be added here
     storage_quota = models.BigIntegerField(default=1 * 1024 * 1024 * 1024)  # 1GB default

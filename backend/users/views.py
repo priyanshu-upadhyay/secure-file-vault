@@ -11,6 +11,8 @@ from Crypto.Random import get_random_bytes # For generating IVs
 import os # For file path operations
 from django.conf import settings # For BASE_DIR
 import hashlib # For SHA256 hashing
+from django.core.files.storage import default_storage # Ensure this is imported
+from django.core.files.base import ContentFile # For saving raw bytes
 
 User = get_user_model()
 
@@ -121,14 +123,20 @@ class RotateEncryptionKeyView(BaseAPIView):
 
         for file_obj in files_to_reencrypt:
             try:
-                file_path = os.path.join(settings.BASE_DIR, str(file_obj.file))
-                if not os.path.exists(file_path):
-                    # self.stderr.write(f"File not found at path: {file_path} for file ID {file_obj.id}")
-                    print(f"[ERROR] File not found at path: {file_path} for file ID {file_obj.id}")
-                    failed_files.append({"id": str(file_obj.id), "name": file_obj.original_filename, "error": "File not found on disk"})
+                # file_path = os.path.join(settings.BASE_DIR, str(file_obj.file)) # Old local path logic
+                # The file_obj.file.name should be the correct path/key for the default_storage
+                storage_file_path = file_obj.file.name 
+                if not storage_file_path:
+                    print(f"[ERROR] File object ID {file_obj.id} has no storage path.")
+                    failed_files.append({"id": str(file_obj.id), "name": file_obj.original_filename, "error": "File path missing in database"})
                     continue
 
-                with open(file_path, 'rb') as f:
+                if not default_storage.exists(storage_file_path):
+                    print(f"[ERROR] File not found in storage at path: {storage_file_path} for file ID {file_obj.id}")
+                    failed_files.append({"id": str(file_obj.id), "name": file_obj.original_filename, "error": "File not found in storage"})
+                    continue
+
+                with default_storage.open(storage_file_path, 'rb') as f:
                     encrypted_content_with_iv = f.read()
                 
                 old_iv = encrypted_content_with_iv[:16]
@@ -144,16 +152,18 @@ class RotateEncryptionKeyView(BaseAPIView):
                 new_ciphertext = encrypt_cipher.encrypt(decrypted_content)
                 new_encrypted_content_with_iv = new_iv + new_ciphertext
 
-                with open(file_path, 'wb') as f:
-                    f.write(new_encrypted_content_with_iv)
+                # Overwrite the file in storage with the new encrypted content
+                # First, delete the old one to ensure an overwrite if the storage backend doesn't do it by default on save.
+                # Some backends might version, others might overwrite. default_storage.save usually overwrites.
+                # To be safe, explicitly delete then save, or ensure your backend overwrites.
+                # For S3Boto3Storage, save typically overwrites.
+                default_storage.save(storage_file_path, ContentFile(new_encrypted_content_with_iv))
                 
                 successful_files_count += 1
-                # self.stdout.write(f"Successfully re-encrypted: {file_obj.original_filename}") # Placeholder
-                print(f"[INFO] Successfully re-encrypted: {file_obj.original_filename}")
+                print(f"[INFO] Successfully re-encrypted: {file_obj.original_filename} (Path: {storage_file_path})")
 
             except Exception as e:
-                # self.stderr.write(f"Failed to re-encrypt file {file_obj.original_filename} (ID: {file_obj.id}): {e}")
-                print(f"[ERROR] Failed to re-encrypt file {file_obj.original_filename} (ID: {file_obj.id}): {e}")
+                print(f"[ERROR] Failed to re-encrypt file {file_obj.original_filename} (ID: {file_obj.id}, Path: {storage_file_path if 'storage_file_path' in locals() else 'unknown'}): {e}")
                 failed_files.append({"id": str(file_obj.id), "name": file_obj.original_filename, "error": str(e)})
         
         # --- End of Synchronous Re-encryption --- 
