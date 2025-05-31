@@ -1,14 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
-# Ensure data directory exists and has proper permissions
-mkdir -p /app/data
-chmod -R 777 /app/data
+# Wait for MinIO to be ready
+./wait-for-it.sh http://minio:9000 -- echo "MinIO is ready"
 
 # Run migrations
-echo "Running migrations..."
-python manage.py makemigrations
 python manage.py migrate
 
-# Start server
-echo "Starting server..."
-gunicorn --bind 0.0.0.0:8000 core.wsgi:application 
+# Start Django
+python manage.py runserver 0.0.0.0:8000 

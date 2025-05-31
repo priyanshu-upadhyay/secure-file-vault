@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   backend:
     build: 
@@ -6,12 +8,23 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - backend_storage:/app/media
+      - backend_storage:/app/s3_files
       - backend_static:/app/staticfiles
       - backend_data:/app/data
     environment:
       - DJANGO_DEBUG=True
-      - DJANGO_SECRET_KEY=insecure-dev-only-key
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - STORAGE_BACKEND=${STORAGE_BACKEND}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+      - MINIO_ENDPOINT_URL=${MINIO_ENDPOINT_URL}
+      - MINIO_REGION=${MINIO_REGION}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    depends_on:
+      minio:
+        condition: service_healthy
     restart: always
 
   frontend:
@@ -21,12 +34,50 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
     depends_on:
       - backend
     restart: always
 
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: always
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+    entrypoint: >
+      /bin/sh -c "
+        until mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do
+          echo 'Waiting for MinIO to be ready...'
+          sleep 1
+        done &&
+        mc mb myminio/${MINIO_BUCKET_NAME} --ignore-existing &&
+        echo 'MinIO initialization completed!'
+      "
+
 volumes:
   backend_storage:
   backend_static:
-  backend_data: 
+  backend_data:
+  minio_data: 
