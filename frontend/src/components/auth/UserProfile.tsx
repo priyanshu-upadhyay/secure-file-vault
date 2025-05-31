@@ -27,6 +27,7 @@ export function UserProfile() {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [isLoading, setIsLoading] = useState(false);
     const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+    const [currentProfilePhotoUrl, setCurrentProfilePhotoUrl] = useState(user?.profile_photo_url || '/images/default-avatar.png');
 
     useEffect(() => {
         if (user) {
@@ -35,6 +36,7 @@ export function UserProfile() {
                 username: user.username || '',
                 email: user.email || '',
             }));
+            setCurrentProfilePhotoUrl(user.profile_photo_url || '/images/default-avatar.png');
         }
     }, [user]);
 
@@ -259,227 +261,218 @@ export function UserProfile() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto p-6">
-            <h2 className="text-2xl font-bold mb-6">Profile Settings</h2>
+        <div className="container mx-auto p-4 max-w-2xl">
+            <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">User Profile</h1>
 
             {message.text && (
-                <div className={`p-4 mb-6 rounded-md ${
-                    message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                }`}>
+                <div className={`p-4 mb-6 rounded-md text-sm ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     {message.text}
                 </div>
             )}
 
-            <div className="space-y-6">
-                {/* Profile Photo */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-                        Profile Photo
-                        <span className="text-gray-400" title="This photo will be shown on your account."><InfoIcon /></span>
-                    </h3>
-                    <div className="flex items-center space-x-4">
-                        {profilePhotoUrl ? (
-                            <img
-                                src={profilePhotoUrl}
-                                alt="Profile"
-                                className="w-20 h-20 rounded-full object-cover border"
-                            />
-                        ) : (
-                            <UserCircleIcon className="w-20 h-20 text-gray-300" />
+            <div className="bg-white shadow-xl rounded-lg p-8">
+                <div className="flex flex-col items-center mb-8">
+                    <div className="relative">
+                        <img
+                            src={currentProfilePhotoUrl}
+                            alt="Profile"
+                            className="w-32 h-32 rounded-full object-cover border-4 border-blue-500"
+                            onError={() => {
+                                if (currentProfilePhotoUrl !== '/images/default-avatar.jpg') {
+                                    setCurrentProfilePhotoUrl('/images/default-avatar.jpg');
+                                }
+                            }}
+                        />
+                        {formData.profile_photo && (
+                            <button
+                                onClick={handleRemovePhoto}
+                                className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 text-xs"
+                                title="Remove selected photo"
+                            >
+                                &times;
+                            </button>
                         )}
-                        <div>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileChange}
-                                className="block w-full text-sm text-gray-500
-                                    file:mr-4 file:py-2 file:px-4
-                                    file:rounded-md file:border-0
-                                    file:text-sm file:font-semibold
-                                    file:bg-indigo-50 file:text-indigo-700
-                                    hover:file:bg-indigo-100"
-                            />
-                            {formData.profile_photo && (
-                                <button
-                                    type="button"
-                                    onClick={handleRemovePhoto}
-                                    className="mt-2 text-xs text-red-500 hover:underline"
-                                >
-                                    Remove selected photo
-                                </button>
-                            )}
-                            <p className="mt-1 text-sm text-gray-500">
-                                JPG, PNG or GIF (max. 2MB)
-                            </p>
-                        </div>
                     </div>
+                    <input
+                        type="file"
+                        id="profile_photo"
+                        name="profile_photo"
+                        onChange={handleFileChange}
+                        className="mt-4 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        accept="image/*"
+                    />
+                    {!formData.profile_photo && profilePhotoUrl && (
+                         <p className="mt-2 text-xs text-gray-500">Current photo will be kept if no new photo is selected.</p>
+                    )}
                 </div>
 
-                {/* Basic Information */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-lg font-medium mb-4">Basic Information</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Username
-                            </label>
-                            <input
-                                type="text"
-                                name="username"
-                                value={formData.username}
-                                onChange={handleChange}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
+                <div className="space-y-6">
+                    {/* Basic Information */}
+                    <div className="bg-white p-6 rounded-lg shadow">
+                        <h3 className="text-lg font-medium mb-4">Basic Information</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Username
+                                </label>
+                                <input
+                                    type="text"
+                                    name="username"
+                                    value={formData.username}
+                                    onChange={handleChange}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Encryption Key Section - Simplified to a button opening a modal */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-medium">Encryption Key</h3>
-                            {hasEncryptionKey ? (
-                                <span className="flex items-center text-xs text-green-600 py-0.5 px-2 bg-green-50 rounded-full" title="Encryption key is set."><LockIcon className="mr-1" /> Set</span>
-                            ) : (
-                                <span className="flex items-center text-xs text-gray-500 py-0.5 px-2 bg-gray-100 rounded-full" title="No encryption key set."><UnlockIcon className="mr-1" /> Not Set</span>
-                            )}
+                    {/* Encryption Key Section - Simplified to a button opening a modal */}
+                    <div className="bg-white p-6 rounded-lg shadow">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-lg font-medium">Encryption Key</h3>
+                                {hasEncryptionKey ? (
+                                    <span className="flex items-center text-xs text-green-600 py-0.5 px-2 bg-green-50 rounded-full" title="Encryption key is set."><LockIcon className="mr-1" /> Set</span>
+                                ) : (
+                                    <span className="flex items-center text-xs text-gray-500 py-0.5 px-2 bg-gray-100 rounded-full" title="No encryption key set."><UnlockIcon className="mr-1" /> Not Set</span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleOpenKeyModal}
+                                className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-300 rounded-md hover:bg-indigo-50 transition-colors"
+                            >
+                                {hasEncryptionKey ? 'Manage Encryption Key' : 'Set Encryption Key'}
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleOpenKeyModal}
-                            className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-300 rounded-md hover:bg-indigo-50 transition-colors"
-                        >
-                            {hasEncryptionKey ? 'Manage Encryption Key' : 'Set Encryption Key'}
-                        </button>
+                        <p className="text-sm text-gray-600">
+                            Your unique encryption key secures your files. 
+                            {hasEncryptionKey ? 'You can rotate it if needed.' : 'Set one now for enhanced security.'}
+                        </p>
                     </div>
-                    <p className="text-sm text-gray-600">
-                        Your unique encryption key secures your files. 
-                        {hasEncryptionKey ? 'You can rotate it if needed.' : 'Set one now for enhanced security.'}
-                    </p>
-                </div>
 
-                {isKeyModalOpen && (
-                    <Modal isOpen={isKeyModalOpen} onClose={() => setIsKeyModalOpen(false)} title={hasEncryptionKey ? "Rotate Encryption Key" : "Set Your Encryption Key"}>
-                        <div className="p-2 space-y-4">
-                            {/* Enhanced Educational Box */}
-                            <div className={`p-4 rounded-md border ${hasEncryptionKey ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : 'bg-blue-50 border-blue-300 text-blue-700'}`}>
-                                <div className="flex items-start">
-                                    <WarningIcon className={`h-6 w-6 mr-3 ${hasEncryptionKey ? 'text-yellow-500' : 'text-blue-500'}`} />
-                                    <div>
-                                        <h4 className="font-semibold mb-1">Important Considerations:</h4>
-                                        {hasEncryptionKey ? (
-                                            <ul className="list-disc list-inside text-sm space-y-1">
-                                                <li>Rotating your key will re-encrypt all currently encrypted files with the new key.</li>
-                                                <li>This process can take time depending on file quantity and size.</li>
-                                                <li>Ensure your new key is strong and stored securely.</li>
-                                                <li>If the old key is required for verification, have it ready.</li>
-                                            </ul>
-                                        ) : (
-                                            <ul className="list-disc list-inside text-sm space-y-1">
-                                                <li>This key is vital for accessing your encrypted files.</li>
-                                                <li className="font-semibold">We do not store this key. If you lose it, you will permanently lose access to your encrypted files.</li>
-                                                <li>There is no recovery process for a lost key.</li>
-                                                <li>Store your key in a password manager or a secure physical location.</li>
-                                            </ul>
-                                        )}
+                    {isKeyModalOpen && (
+                        <Modal isOpen={isKeyModalOpen} onClose={() => setIsKeyModalOpen(false)} title={hasEncryptionKey ? "Rotate Encryption Key" : "Set Your Encryption Key"}>
+                            <div className="p-2 space-y-4">
+                                {/* Enhanced Educational Box */}
+                                <div className={`p-4 rounded-md border ${hasEncryptionKey ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : 'bg-blue-50 border-blue-300 text-blue-700'}`}>
+                                    <div className="flex items-start">
+                                        <WarningIcon className={`h-6 w-6 mr-3 ${hasEncryptionKey ? 'text-yellow-500' : 'text-blue-500'}`} />
+                                        <div>
+                                            <h4 className="font-semibold mb-1">Important Considerations:</h4>
+                                            {hasEncryptionKey ? (
+                                                <ul className="list-disc list-inside text-sm space-y-1">
+                                                    <li>Rotating your key will re-encrypt all currently encrypted files with the new key.</li>
+                                                    <li>This process can take time depending on file quantity and size.</li>
+                                                    <li>Ensure your new key is strong and stored securely.</li>
+                                                    <li>If the old key is required for verification, have it ready.</li>
+                                                </ul>
+                                            ) : (
+                                                <ul className="list-disc list-inside text-sm space-y-1">
+                                                    <li>This key is vital for accessing your encrypted files.</li>
+                                                    <li className="font-semibold">We do not store this key. If you lose it, you will permanently lose access to your encrypted files.</li>
+                                                    <li>There is no recovery process for a lost key.</li>
+                                                    <li>Store your key in a password manager or a secure physical location.</li>
+                                                </ul>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Form Fields */}
-                            {hasEncryptionKey && (
+                                {/* Form Fields */}
+                                {hasEncryptionKey && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Current Encryption Key</label>
+                                        <input type="password" name="old_encryption_key" value={formData.old_encryption_key} onChange={handleChange} placeholder="Enter current key if rotating" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                                        <p className="mt-1 text-xs text-gray-500">Optional: Provide your current key for verification if you are rotating it.</p>
+                                    </div>
+                                )}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Current Encryption Key</label>
-                                    <input type="password" name="old_encryption_key" value={formData.old_encryption_key} onChange={handleChange} placeholder="Enter current key if rotating" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                                    <p className="mt-1 text-xs text-gray-500">Optional: Provide your current key for verification if you are rotating it.</p>
+                                    <label className="block text-sm font-medium text-gray-700">{hasEncryptionKey ? 'New Encryption Key' : 'Encryption Key'}</label>
+                                    <input type="password" name="new_encryption_key" value={formData.new_encryption_key} onChange={handleChange} placeholder={hasEncryptionKey ? "Enter new strong key" : "Enter your desired key"} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                                 </div>
-                            )}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">{hasEncryptionKey ? 'New Encryption Key' : 'Encryption Key'}</label>
-                                <input type="password" name="new_encryption_key" value={formData.new_encryption_key} onChange={handleChange} placeholder={hasEncryptionKey ? "Enter new strong key" : "Enter your desired key"} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Confirm {hasEncryptionKey ? 'New ' : ''}Encryption Key</label>
-                                <input type="password" name="confirm_new_encryption_key" value={formData.confirm_new_encryption_key} onChange={handleChange} placeholder="Confirm your key" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                            </div>
-
-                            {/* Modal-specific message area */}
-                            {message.text && (
-                                <div className={`p-3 rounded-md text-sm ${ message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700' }`}>
-                                    {message.text}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Confirm {hasEncryptionKey ? 'New ' : ''}Encryption Key</label>
+                                    <input type="password" name="confirm_new_encryption_key" value={formData.confirm_new_encryption_key} onChange={handleChange} placeholder="Confirm your key" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                                 </div>
-                            )}
 
-                            <div className="flex items-center justify-end space-x-3 pt-3">
-                                <button type="button" onClick={() => setIsKeyModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    Cancel
-                                </button>
-                                <button type="button" onClick={handleSubmitKeyAction} disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
-                                    {isLoading ? 'Processing...' : (hasEncryptionKey ? 'Rotate Key & Re-encrypt' : 'Set & Save Key')}
-                                </button>
+                                {/* Modal-specific message area */}
+                                {message.text && (
+                                    <div className={`p-3 rounded-md text-sm ${ message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700' }`}>
+                                        {message.text}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-end space-x-3 pt-3">
+                                    <button type="button" onClick={() => setIsKeyModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                        Cancel
+                                    </button>
+                                    <button type="button" onClick={handleSubmitKeyAction} disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                                        {isLoading ? 'Processing...' : (hasEncryptionKey ? 'Rotate Key & Re-encrypt' : 'Set & Save Key')}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    </Modal>
-                )}
+                        </Modal>
+                    )}
 
-                {/* Change Password */}
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-lg font-medium mb-4">Change Password</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Current Password
-                            </label>
-                            <input
-                                type="password"
-                                value={oldPassword}
-                                onChange={(e) => setOldPassword(e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
+                    {/* Change Password */}
+                    <div className="bg-white p-6 rounded-lg shadow">
+                        <h3 className="text-lg font-medium mb-4">Change Password</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Current Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={oldPassword}
+                                    onChange={(e) => setOldPassword(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                    New Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                />
+                            </div>
+                            <button
+                                onClick={handleChangePassword}
+                                disabled={isLoading || !oldPassword || !newPassword}
+                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                            >
+                                {isLoading ? 'Changing Password...' : 'Change Password'}
+                            </button>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                New Password
-                            </label>
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
-                        </div>
+                    </div>
+
+                    {/* Save Changes Button */}
+                    <div className="flex justify-end">
                         <button
-                            onClick={handleChangePassword}
-                            disabled={isLoading || !oldPassword || !newPassword}
-                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                            onClick={handleSave}
+                            disabled={isLoading}
+                            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                         >
-                            {isLoading ? 'Changing Password...' : 'Change Password'}
+                            {isLoading ? 'Saving Profile...' : 'Save Profile Changes'}
                         </button>
                     </div>
-                </div>
-
-                {/* Save Changes Button */}
-                <div className="flex justify-end">
-                    <button
-                        onClick={handleSave}
-                        disabled={isLoading}
-                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                        {isLoading ? 'Saving Profile...' : 'Save Profile Changes'}
-                    </button>
                 </div>
             </div>
         </div>

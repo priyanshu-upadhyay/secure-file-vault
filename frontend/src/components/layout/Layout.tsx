@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import StorageUsage from '../StorageUsage';
@@ -11,6 +11,13 @@ const ChevronDownIcon = FaIcons.FaChevronDown as unknown as React.FC<React.SVGPr
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    // State for the profile image URL in the nav
+    const [navProfilePhotoUrl, setNavProfilePhotoUrl] = useState(user?.profile_photo_url || '/images/default-avatar.jpg');
+
+    useEffect(() => {
+        // Update the nav profile photo URL when the user object or its photo URL changes
+        setNavProfilePhotoUrl(user?.profile_photo_url || '/images/default-avatar.jpg');
+    }, [user?.profile_photo_url]);
 
     const handleLogout = () => {
         logout();
@@ -46,11 +53,27 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                                         onClick={handleProfileClick}
                                         className={`${navButtonStyle}`}
                                     >
-                                        {user.profile_photo_url ? (
+                                        {user.profile_photo_url && navProfilePhotoUrl !== '/images/default-avatar.jpg' ? (
                                             <img 
-                                                src={user.profile_photo_url} 
+                                                src={navProfilePhotoUrl} 
                                                 alt={user.username} 
                                                 className="w-6 h-6 rounded-full mr-2 object-cover border border-gray-300"
+                                                onError={() => {
+                                                    if (navProfilePhotoUrl !== '/images/default-avatar.jpg') {
+                                                        setNavProfilePhotoUrl('/images/default-avatar.jpg');
+                                                    }
+                                                }}
+                                            />
+                                        ) : user.profile_photo_url && navProfilePhotoUrl === '/images/default-avatar.jpg' ? (
+                                            // Attempting to load default avatar, if this also errors, icon will show next
+                                            <img 
+                                                src={navProfilePhotoUrl} // Which is /images/default-avatar.jpg
+                                                alt={user.username} 
+                                                className="w-6 h-6 rounded-full mr-2 object-cover border border-gray-300"
+                                                onError={() => {
+                                                    // If default avatar itself fails, effectively hide img and let icon show
+                                                    setNavProfilePhotoUrl(''); // Set to empty to trigger icon fallback
+                                                }}
                                             />
                                         ) : (
                                             <UserCircleIcon className="w-6 h-6 mr-2 text-gray-500" />

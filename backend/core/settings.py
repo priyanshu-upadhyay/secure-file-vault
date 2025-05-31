@@ -220,30 +220,34 @@ if not os.path.exists('logs'):
 ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', "a-y9AZNVRZsdeag-1VtQkIfkVzcJxyBUAmN4TVFgZZw=")
 
 # STORAGE_BACKEND: 'local' or 'minio'
-STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'minio') # Default to local if not set
+STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local') # Default to local if not set
 
-if STORAGE_BACKEND == 'minio':
+if STORAGE_BACKEND == 's3':
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     AWS_ACCESS_KEY_ID = os.getenv('MINIO_ROOT_USER', 'ROOTNAME') # Your MinIO access key
     AWS_SECRET_ACCESS_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'CHANGEME123') # Your MinIO secret key
-    AWS_STORAGE_BUCKET_NAME = os.getenv('MINIO_BUCKET_NAME', 'secure-file-vault') # Your MinIO bucket name for all files
+    AWS_STORAGE_BUCKET_NAME = os.getenv('MINIO_BUCKET_NAME', 'secure-file-vault') # Your MinIO bucket name
     AWS_S3_ENDPOINT_URL = os.getenv('MINIO_ENDPOINT_URL', 'http://127.0.0.1:9000') # Your MinIO server URL
     AWS_S3_OBJECT_PARAMETERS = {
         'CacheControl': 'max-age=86400',
     }
-    AWS_LOCATION = '' # Changed: Store files at the bucket root, subpaths managed by upload_to or logic
+    # AWS_LOCATION = 'media' # Optional: Subdirectory within the bucket for media files
     AWS_S3_FILE_OVERWRITE = False # Default, set to True if you want to overwrite files with the same name
     AWS_DEFAULT_ACL = None # Default, MinIO typically handles ACLs at bucket/policy level
-    AWS_S3_REGION_NAME = os.getenv('MINIO_REGION', 'us-east-1')
+    AWS_S3_REGION_NAME = os.getenv('MINIO_REGION', 'us-east-1') # MinIO doesn't strictly use regions like AWS S3, but boto3 might expect it.
     AWS_S3_SIGNATURE_VERSION = 's3v4'
-    AWS_S3_ADDRESSING_STYLE = 'virtual'
-    # MEDIA_URL = '/media/' # Removed: django-storages handles full URL generation from bucket
+    AWS_S3_ADDRESSING_STYLE = 'virtual' # Can be 'path' or 'virtual'. 'path' is often better for MinIO.
+    # For MinIO, it's often recommended to use path-style access if virtual hosting is not configured:
+    # AWS_S3_ADDRESSING_STYLE = 'path'
+    # You might also need this for self-signed certs if using HTTPS with MinIO, but your setup is HTTP
+    # AWS_S3_VERIFY = False
+    # MEDIA_URL = '/media/' # URLs for files in AWS_LOCATION typically start with /media/
     # MEDIA_ROOT is not applicable for S3 storage
 elif STORAGE_BACKEND == 'local':
     # Default Django local storage is used
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-    MEDIA_ROOT = os.path.join(MAIN_DIR, 'secure_file_vault_data') # Changed: local root for "secure-file-vault"
-    MEDIA_URL = '/secure_file_vault_data/' # Changed: URL for local "secure-file-vault"
+    MEDIA_ROOT = os.path.join(MAIN_DIR, 's3_files') # Changed: removed 'media' subfolder
+    MEDIA_URL = '/s3_files/' # Changed: removed 'media' subfolder
     if not os.path.exists(MEDIA_ROOT):
         os.makedirs(MEDIA_ROOT, exist_ok=True)
 else:
