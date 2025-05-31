@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.validators import UniqueValidator
+import os
 
 User = get_user_model()
 
@@ -30,12 +31,12 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.has_encryption_key()
 
     def get_profile_photo_url(self, obj):
-        if obj.profile_photo:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_photo.url)
-            return obj.profile_photo.url
-        return None
+      if obj.profile_photo and hasattr(obj.profile_photo, 'name'):
+          request = self.context.get('request')
+          filename = os.path.basename(obj.profile_photo.name)
+          url_path = f"/api/auth/profile_photos/{filename}"
+          return request.build_absolute_uri(url_path) if request else url_path
+      return None
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(

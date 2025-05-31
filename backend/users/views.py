@@ -13,6 +13,7 @@ from django.conf import settings # For BASE_DIR
 import hashlib # For SHA256 hashing
 from django.core.files.storage import default_storage # Ensure this is imported
 from django.core.files.base import ContentFile # For saving raw bytes
+from django.http import FileResponse, Http404
 
 User = get_user_model()
 
@@ -182,3 +183,14 @@ class RotateEncryptionKeyView(BaseAPIView):
                 "failed_files": failed_files,
                 "successful_count": successful_files_count
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ServeProfilePhoto(APIView):
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self, request, filename):
+        file_path = os.path.join(settings.MEDIA_ROOT, 'profile_photos', filename)
+
+        if os.path.exists(file_path):
+            return FileResponse(open(file_path, 'rb'), content_type='image/jpeg')
+        else:
+            raise Http404("File not found")
