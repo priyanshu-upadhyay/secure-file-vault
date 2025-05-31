@@ -190,7 +190,7 @@ class ServeProfilePhoto(APIView):
     def get(self, request, filename):
         file_path = os.path.join(settings.MEDIA_ROOT, 'profile_photos', filename)
 
-        if os.path.exists(file_path):
-            return FileResponse(open(file_path, 'rb'), content_type='image/jpeg')
+        if default_storage.exists(file_path):
+            return FileResponse(default_storage.open(file_path, 'rb'), content_type='image/jpeg')
         else:
             raise Http404("File not found")

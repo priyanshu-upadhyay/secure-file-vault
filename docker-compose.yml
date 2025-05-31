@@ -12,7 +12,7 @@ services:
       - backend_static:/app/staticfiles
       - backend_data:/app/data
     environment:
-      - DJANGO_DEBUG=True
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
       - STORAGE_BACKEND=${STORAGE_BACKEND}
