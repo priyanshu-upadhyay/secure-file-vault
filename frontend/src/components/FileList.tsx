@@ -114,33 +114,9 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
         }
     }, []); // Empty dependency array: fetchFilesLogic is stable
 
-    // useRef to hold the stable debounced function and its cancel method
-    const debouncedFetchRef = useRef(
-        debounce((filters: Record<string, string>) => fetchFilesLogic(filters), 500)
-    );
-
-    // useEffect for triggering search when filter states change
-    useEffect(() => {
-        const currentFilters = {
-            filename,
-            file_type: fileType,
-            size_min: sizeMin,
-            size_max: sizeMax,
-            date_from: dateFrom,
-            date_to: dateTo,
-        };
-        // Call the debounced function from the ref
-        debouncedFetchRef.current.debounced(currentFilters);
-
-        // Cleanup: cancel any pending debounced call when dependencies change or component unmounts
-        return () => {
-            debouncedFetchRef.current.cancel();
-        };
-    }, [filename, fileType, sizeMin, sizeMax, dateFrom, dateTo]); // Re-run when any filter state changes
-
     // Initial fetch on component mount
     useEffect(() => {
-        // Fetch with empty filters initially or default filters
+        // Fetch with empty filters initially
         fetchFilesLogic({});
     }, [fetchFilesLogic]); // Depends on stable fetchFilesLogic
 
@@ -157,6 +133,29 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
             await fetchFilesLogic(currentFilters);
         }
     }));
+
+    const handleApplyFilters = () => {
+        const currentFilters = {
+            filename,
+            file_type: fileType,
+            size_min: sizeMin,
+            size_max: sizeMax,
+            date_from: dateFrom,
+            date_to: dateTo,
+        };
+        fetchFilesLogic(currentFilters);
+    };
+
+    const handleClearFilters = () => {
+        setFilename('');
+        setFileType('');
+        setSizeMin('');
+        setSizeMax('');
+        setDateFrom('');
+        setDateTo('');
+        // Fetch with empty filters after clearing
+        fetchFilesLogic({});
+    };
 
     const handleDeleteClick = (file: FileResponse) => {
         setFileToDelete(file);
@@ -199,16 +198,6 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
             setError('Failed to download file');
             console.error('Error downloading file:', err);
         }
-    };
-
-    const handleClearFilters = () => {
-        setFilename('');
-        setFileType('');
-        setSizeMin('');
-        setSizeMax('');
-        setDateFrom('');
-        setDateTo('');
-        // The useEffect listening to filter states will automatically trigger a debounced refetch
     };
 
     if (loading) {
@@ -294,12 +283,18 @@ const FileList = forwardRef<FileListHandle>((_, ref) => {
                         />
                     </div>
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-end space-x-3">
                     <button
                         onClick={handleClearFilters}
                         className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                     >
                         Clear Filters
+                    </button>
+                    <button
+                        onClick={handleApplyFilters}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                        Apply Filters
                     </button>
                 </div>
             </div>
